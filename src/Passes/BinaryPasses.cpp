@@ -1261,6 +1261,10 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
   uint64_t NumUnknownControlFlowFunctions{0};
   uint64_t TotalSampleCount{0};
   uint64_t StaleSampleCount{0};
+
+  uint64_t NumBasicBlocks{0};
+  uint64_t NumBasicBlocksWithProfile{0};
+  
   std::vector<BinaryFunction *> ProfiledFunctions;
   const char *StaleFuncsHeader = "BOLT-INFO: Functions with stale profile:\n";
   for (auto &BFI : BC.getBinaryFunctions()) {
@@ -1271,10 +1275,18 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
       continue;
 
     ++NumRegularFunctions;
+    NumBasicBlocks += Function.layout_size();
 
     if (!Function.isSimple()) {
       if (Function.hasProfile()) {
         ++NumNonSimpleProfiledFunctions;
+
+        for(auto BB : Function.layout()) {
+          if(BB->hasProfile()) {
+            NumBasicBlocksWithProfile++; 
+            if(BB->getExecutionCount()) BB->calculateBranchBias();
+          }
+        }
       }
       continue;
     }
@@ -1290,6 +1302,13 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
     if (!Function.hasProfile())
       continue;
+
+    for(auto BB : Function.layout()) {
+      if(BB->hasProfile()) {
+        NumBasicBlocksWithProfile++; 
+        if(BB->getExecutionCount()) BB->calculateBranchBias();
+      }
+    }
 
     auto SampleCount = Function.getRawBranchCount();
     TotalSampleCount += SampleCount;
@@ -1535,6 +1554,12 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
     }
     outs() << '\n';
   }
+
+  /// BB profile stats
+  outs() << "BOLT-INFO: " << NumBasicBlocksWithProfile << " out of "
+    << NumBasicBlocks << " basic blocks " 
+    << format("%.2f", NumBasicBlocksWithProfile / (float) NumBasicBlocks * 100.0)
+    << "% has non-empty execution profile.\n";
 }
 
 void InstructionLowering::runOnFunctions(BinaryContext &BC) {

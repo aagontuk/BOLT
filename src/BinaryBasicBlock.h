@@ -48,6 +48,7 @@ public:
   struct BinaryBranchInfo {
     uint64_t Count;
     uint64_t MispredictedCount; /// number of branches mispredicted
+    float Bias; /// Count fraction of total ExecutionCount of the root BB
 
     bool operator<(const BinaryBranchInfo &Other) const {
       return (Count < Other.Count) ||
@@ -351,6 +352,13 @@ public:
   inline iterator_range<const_branch_info_iterator> branch_info() const {
     return iterator_range<const_branch_info_iterator>(
         BranchInfo.begin(), BranchInfo.end());
+  }
+
+  /// Calculate bias of each successor
+  void calculateBranchBias() {
+    for(auto BBI : BranchInfo) {
+      BBI.Bias = BBI.Count / (float)ExecutionCount;
+    }
   }
 
   /// Get instruction at given index.
