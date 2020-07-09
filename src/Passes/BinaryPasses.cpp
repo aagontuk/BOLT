@@ -1276,17 +1276,19 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
     ++NumRegularFunctions;
     NumBasicBlocks += Function.layout_size();
-
-    if (!Function.isSimple()) {
-      if (Function.hasProfile()) {
-        ++NumNonSimpleProfiledFunctions;
-
+    
+    if(Function.hasProfile()) {
         for(auto BB : Function.layout()) {
           if(BB->hasProfile()) {
             NumBasicBlocksWithProfile++; 
             if(BB->getExecutionCount()) BB->calculateBranchBias();
           }
         }
+    }
+
+    if (!Function.isSimple()) {
+      if (Function.hasProfile()) {
+        ++NumNonSimpleProfiledFunctions;
       }
       continue;
     }
@@ -1302,13 +1304,6 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
     if (!Function.hasProfile())
       continue;
-
-    for(auto BB : Function.layout()) {
-      if(BB->hasProfile()) {
-        NumBasicBlocksWithProfile++; 
-        if(BB->getExecutionCount()) BB->calculateBranchBias();
-      }
-    }
 
     auto SampleCount = Function.getRawBranchCount();
     TotalSampleCount += SampleCount;
