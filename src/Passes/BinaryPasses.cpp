@@ -14,6 +14,7 @@
 #include "ParallelUtilities.h"
 #include "Passes/ReorderAlgorithm.h"
 #include "llvm/Support/Options.h"
+#include "BinaryFunctionCallGraph.h"
 
 #include <numeric>
 #include <vector>
@@ -1253,6 +1254,44 @@ void PrintProfileStats::runOnFunctions(BinaryContext &BC) {
   }
 }
 
+void generateCallGraph(BinaryContext &BC) {
+  for(auto &BFI : BC.getBinaryFunctions()) {
+    auto &SrcFunction = BFI.second; 
+
+    if(!SrcFunction.getKnownExecutionCount()) {
+      continue; 
+    }
+
+    for(auto BB : SrcFunction.layout()) {
+      for (auto &Inst : *BB) {
+        // Find call instructions and extract target symbols from each one
+        if (!BC.MIB->isCall(Inst))
+          continue;
+
+        // Call info
+        const MCSymbol* DstSym = BC.MIB->getTargetSymbol(Inst);
+        auto Count = BB->getKnownExecutionCount();
+        // Ignore calls w/o information
+        if (DstSym == nullptr)
+          continue;
+
+        auto DstFunction = BC.getFunctionForSymbol(DstSym);
+        // Ignore recursive calls
+        if (DstFunction == nullptr ||
+            DstFunction->layout_empty() ||
+            DstFunction == &SrcFunction)
+          continue;
+
+        // Record the call
+        SrcFunction.addCall(DstFunction, Count);
+      }
+    }
+
+    // Calculate bias
+    SrcFunction.calculateCallBias();
+  } 
+}
+
 void
 PrintProgramStats::runOnFunctions(BinaryContext &BC) {
   uint64_t NumRegularFunctions{0};
@@ -1264,6 +1303,9 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
   uint64_t NumBasicBlocks{0};
   uint64_t NumBasicBlocksWithProfile{0};
+
+  /// Generate call graph
+  generateCallGraph(BC);
   
   std::vector<BinaryFunction *> ProfiledFunctions;
   const char *StaleFuncsHeader = "BOLT-INFO: Functions with stale profile:\n";
@@ -1278,12 +1320,12 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
     NumBasicBlocks += Function.layout_size();
     
     if(Function.hasProfile()) {
-        for(auto BB : Function.layout()) {
-          if(BB->hasProfile()) {
-            NumBasicBlocksWithProfile++; 
-            if(BB->getExecutionCount()) BB->calculateBranchBias();
-          }
+      for(auto BB : Function.layout()) {
+        if(BB->hasProfile()) {
+          NumBasicBlocksWithProfile++; 
+          if(BB->getExecutionCount()) BB->calculateBranchBias();
         }
+      }
     }
 
     if (!Function.isSimple()) {

@@ -704,6 +704,16 @@ private:
     clearList(FrameRestoreEquivalents);
   }
 
+  /// Profile Information of a call from this function
+  struct CallInfo {
+    BinaryFunction *Successor; 
+    uint64_t Count;
+    float Bias;
+  };
+
+  /// All calls from this funciton
+  std::vector<CallInfo> AllCalls;
+
 public:
   BinaryFunction(BinaryFunction &&) = default;
 
@@ -2208,6 +2218,37 @@ public:
 
   const IndirectCallSiteProfile &getAllCallSites() const {
     return AllCallSites;
+  }
+
+  void addCall(BinaryFunction *BF, uint64_t Count) {
+    /// If allready in the call list
+    for(auto &call : AllCalls) {
+      if(call.Successor == BF) {
+        call.Count += Count; 
+        return;
+      } 
+    }
+
+    struct CallInfo call{BF, Count, 0.0}; 
+    AllCalls.push_back(call);
+  }
+  
+  std::vector<CallInfo> &getAllCalls() {
+    return AllCalls; 
+  }
+
+  void calculateCallBias() {
+    double totalExecutionCount{0};
+    
+    for(auto &call : AllCalls) {
+      totalExecutionCount += call.Count; 
+    }
+
+    if(totalExecutionCount) {
+      for(auto &call : AllCalls) {
+        call.Bias = (double) call.Count / totalExecutionCount; 
+      } 
+    }
   }
 
   /// Walks the list of basic blocks filling in missing information about
