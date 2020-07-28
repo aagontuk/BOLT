@@ -247,6 +247,9 @@ TopCalledLimit("top-called-limit",
   cl::Hidden,
   cl::cat(BoltCategory));
 
+cl::opt<std::string> ProfileOutputFile("profile-output-file",
+  cl::desc("Filename for output profile data"));
+
 } // namespace opts
 
 namespace llvm {
@@ -1306,6 +1309,10 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
   /// Generate call graph
   generateCallGraph(BC);
+
+  /// Open file for writing profile data to file
+  std::error_code EC;
+  raw_fd_ostream of(opts::ProfileOutputFile, EC, sys::fs::F_None);
   
   std::vector<BinaryFunction *> ProfiledFunctions;
   const char *StaleFuncsHeader = "BOLT-INFO: Functions with stale profile:\n";
@@ -1325,6 +1332,10 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
           NumBasicBlocksWithProfile++; 
           if(BB->getExecutionCount()) BB->calculateBranchBias();
         }
+      }
+
+      if(!EC) {
+        Function.dumpProfileToFile(of); 
       }
     }
 

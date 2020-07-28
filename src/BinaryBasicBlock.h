@@ -915,6 +915,9 @@ public:
   /// A simple dump function for debugging.
   void dump() const;
 
+  /// Dump branch info
+  void dumpBranchInfo(raw_ostream &OS);
+  
   /// Validate successor invariants for this BB.
   bool validateSuccessorInvariants();
 
