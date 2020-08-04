@@ -247,8 +247,13 @@ TopCalledLimit("top-called-limit",
   cl::Hidden,
   cl::cat(BoltCategory));
 
-cl::opt<std::string> ProfileOutputFile("profile-output-file",
-  cl::desc("Filename for output profile data"));
+static cl::opt<std::string>
+CGFileName("cg-profile-file",
+  cl::desc("Call graph profile data output file name"));
+
+static cl::opt<std::string>
+BBFileName("bb-profile-file",
+  cl::desc("BB profile data output file name"));
 
 } // namespace opts
 
@@ -1295,6 +1300,49 @@ void generateCallGraph(BinaryContext &BC) {
   } 
 }
 
+void dumpCallGraphProfile(BinaryContext &BC) {
+  if(opts::CGFileName.empty())
+    return;
+
+  std::error_code EC;
+  raw_fd_ostream of("cgdata", EC, sys::fs::F_None);
+
+  for(auto &BFI : BC.getBinaryFunctions()) {
+    auto &function = BFI.second; 
+
+    for(auto &call : function.getAllCalls()) {
+      of << function.getOneName() << "," << call.Successor->getOneName() << ","
+        << call.Count << "\n";
+    }
+  }
+
+  of.close();
+}
+
+void dumpBBProfile(BinaryContext &BC) {
+  if(opts::BBFileName.empty())
+    return;
+
+  std::error_code EC;
+  raw_fd_ostream of("bbdata", EC, sys::fs::F_None);
+
+  for(auto &BFI : BC.getBinaryFunctions()) {
+    auto &function = BFI.second;
+
+    if(function.isPLTFunction())
+      continue;
+
+    if(!function.hasProfile())
+      continue; 
+    
+    for(auto BB : function.layout()) {
+      if(!BB->getKnownExecutionCount())
+        continue;
+      BB->dumpBranchInfo(of); 
+    }
+  }
+}
+
 void
 PrintProgramStats::runOnFunctions(BinaryContext &BC) {
   uint64_t NumRegularFunctions{0};
@@ -1309,11 +1357,9 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
   /// Generate call graph
   generateCallGraph(BC);
+  dumpCallGraphProfile(BC);
+  dumpBBProfile(BC);
 
-  /// Open file for writing profile data to file
-  std::error_code EC;
-  raw_fd_ostream of(opts::ProfileOutputFile, EC, sys::fs::F_None);
-  
   std::vector<BinaryFunction *> ProfiledFunctions;
   const char *StaleFuncsHeader = "BOLT-INFO: Functions with stale profile:\n";
   for (auto &BFI : BC.getBinaryFunctions()) {
@@ -1332,10 +1378,6 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
           NumBasicBlocksWithProfile++; 
           if(BB->getExecutionCount()) BB->calculateBranchBias();
         }
-      }
-
-      if(!EC) {
-        Function.dumpProfileToFile(of); 
       }
     }
 

@@ -3056,28 +3056,6 @@ void BinaryFunction::dumpGraphToFile(std::string Filename) const {
   dumpGraph(of);
 }
 
-void BinaryFunction::dumpProfileToFile(raw_ostream &OS) const {
-  OS << format("%x", getAddress()) << "," << getOneName() << "," << AllCalls.size() << ","
-    << getKnownExecutionCount() << "\n";   
-
-  /// Print call graph
-  int i = 0;
-  for(auto &call : AllCalls) {
-    (++i < AllCalls.size()) ? OS << format("%x", call.Successor->getAddress()) << "," << call.Count << ","
-      : OS << format("%x", call.Successor->getAddress()) << "," << call.Count << "\n";
-  } 
-
-  /// Number of BB
-  OS << layout_size() << "\n";
-
-  /// Print BB
-  for(auto BB : layout()) {
-    BB->dumpBranchInfo(OS); 
-  }
-
-  OS << "\n";
-}
-
 bool BinaryFunction::validateCFG() const {
   bool Valid = true;
   for (auto *BB : BasicBlocks) {

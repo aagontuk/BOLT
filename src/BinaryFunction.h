@@ -704,9 +704,10 @@ private:
     clearList(FrameRestoreEquivalents);
   }
 
-  /// Profile Information of a call from this function
+  /// An edge in the call graph
+  /// And execution count of this edge
   struct CallInfo {
-    BinaryFunction *Successor; 
+    BinaryFunction *Successor;
     uint64_t Count;
     float Bias;
   };
@@ -896,11 +897,6 @@ public:
 
   /// Dump internal CFG representaton in a file with .txt extension
   void dumpGraphToTextFile() const;
-
-  /// Dump profile informations to a file
-  /// Execution count for this function, for each edge in call graph,
-  /// Exectuon count of each BB and branches of BB
-  void dumpProfileToFile(raw_ostream &OS) const;
 
   /// Return BinaryContext for the function.
   const BinaryContext &getBinaryContext() const {

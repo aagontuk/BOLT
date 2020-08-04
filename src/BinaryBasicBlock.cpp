@@ -554,23 +554,11 @@ void BinaryBasicBlock::dump() const {
 }
 
 void BinaryBasicBlock::dumpBranchInfo(raw_ostream &OS) {
-  OS << format("%x", getInputOffset()) << "," << succ_size() << "," << getKnownExecutionCount();
-
-  if(succ_size() <= 0) {
-    OS << "\n";
-    return;
-  }
-  else {
-    OS << ","; 
-  }
-
-  /// Print successor offsets
-  size_t i = 0;
   for(const auto &succ : successors()) {
     auto &BBI = getBranchInfo(*succ);
-    (++i < succ_size()) ? OS << format("%x", succ->getInputOffset()) << "," << BBI.Count << ","
-      << BBI.MispredictedCount << "," : OS << format("%x", succ->getInputOffset()) << ","
-      << BBI.Count << "," << BBI.MispredictedCount << "\n";
+    OS << format("%x", getParent()->getAddress() + getInputOffset()) << ","
+      << format("%x", succ->getParent()->getAddress() + succ->getInputOffset())
+      << "," << BBI.Count << "," << BBI.MispredictedCount << "\n";
   }
 }
 
