@@ -75,6 +75,7 @@ for sp in ${sample_periods[@]}; do
         PROFILE_BUILD_DIR=${CLANG_BUILD_DIR}/prof_build
         PROFILE_NAME=${CLANG_PROFILE_DIR}/${ver}_clang_${sp}
         
+        BUILD_FLAGS="-DLLVM_ENABLE_PROJECTS=clang"
         BUILD_FLAGS="-DLLVM_TARGETS_TO_BUILD=X86 -DCMAKE_BUILD_TYPE=Release"
         BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_C_COMPILER=${VERSION_BIN_DIR}/clang"
         BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_CXX_COMPILER=${VERSION_BIN_DIR}/clang++"
@@ -93,7 +94,7 @@ for sp in ${sample_periods[@]}; do
         git checkout llvmorg-7.0.0
         cd $PROFILE_BUILD_DIR
         cmake -G Ninja ${CLANG_SRC_DIR}/llvm ${BUILD_FLAGS}
-        perf record -e cycles:u -j any,u -o ${PROFILE_NAME}.data -- ninja
+        perf record -e cycles:u -j any,u -o ${PROFILE_NAME}.data -- ninja clang
         perf2bolt ${VERSION_BIN_DIR}/clang-10 -p ${PROFILE_NAME}.data -o ${PROFILE_NAME}.fdata -w ${PROFILE_NAME}.yaml
         break
     done
