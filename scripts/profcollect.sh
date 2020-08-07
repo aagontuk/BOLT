@@ -3,7 +3,18 @@
 # Script for collecting profiles
 
 SCRIPTDIR=$(pwd)
-PROFDIR="${HOME}/universe/programming/repos/profiles"
+
+if [ -z "$1" ]; then
+    PROFDIR=$HOME/profquality
+    echo "Using default directory: ${PROFDIR}"
+else
+    PROFDIR=$1
+fi
+
+if [ ! -d $PROFDIR ]; then
+    echo "Directory ${PROFDIR} doesn't exists!"
+    mkdir -pv ${PROFDIR}
+fi
 
 cd ${PROFDIR}
 
@@ -26,9 +37,7 @@ if [ ! -d $CLANG_BUILD_DIR ]; then
     mkdir -v $CLANG_BUILD_DIR
 fi
 
-BUILD_FLAGS="-DLLVM_ENABLE_PROJECTS="clang;lld""
-BUILD_FLAGS="${BUILD_FLAGS} -DLLVM_TARGETS_TO_BUILD=X86 -DCMAKE_BUILD_TYPE=Release"
-BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_ASM_COMPILER=lld"
+BUILD_FLAGS="-DLLVM_ENABLE_PROJECTS='clang;lld'"
 
 # Flag needed for llvm-bolt to work
 export LDFLAGS="-Wl,-q"
@@ -44,8 +53,8 @@ for ver in $clang_versions; do
     cd $CLANG_SRC_DIR
     git checkout $ver
     cd $VERSION_BUILD_DIR
-    cmake -G Ninja ${CLANG_SRC_DIR}/llvm ${BUILD_FLAGS} -DCMAKE_INSTALL_PREFIX="${VERSION_BUILD_DIR}/install"
-    ninja -j4 install
+    cmake -G Ninja ${CLANG_SRC_DIR}/llvm ${BUILD_FLAGS}
+    ninja
     break
 done
 
@@ -62,7 +71,7 @@ for sp in ${sample_periods[@]}; do
     
     for ver in $clang_versions; do
         # collect profile for clang input
-        VERSION_BIN_DIR=${CLANG_BUILD_DIR}/${ver}/install/bin
+        VERSION_BIN_DIR=${CLANG_BUILD_DIR}/${ver}/bin
         PROFILE_BUILD_DIR=${CLANG_BUILD_DIR}/prof_build
         PROFILE_NAME=${CLANG_PROFILE_DIR}/${ver}_clang_${sp}
         
@@ -83,8 +92,8 @@ for sp in ${sample_periods[@]}; do
         cd $CLANG_SRC_DIR
         git checkout llvmorg-7.0.0
         cd $PROFILE_BUILD_DIR
-        cmake -G Ninja ${CLANG_SRC_DIR}/llvm ${BUILD_FLAGS} -DCMAKE_INSTALL_PREFIX="${PROFILE_BUILD_DIR}/install"
-        perf record -e cycles:u -j any,u -o ${PROFILE_NAME}.data -- ninja clang
+        cmake -G Ninja ${CLANG_SRC_DIR}/llvm ${BUILD_FLAGS}
+        perf record -e cycles:u -j any,u -o ${PROFILE_NAME}.data -- ninja
         perf2bolt ${VERSION_BIN_DIR}/clang-10 -p ${PROFILE_NAME}.data -o ${PROFILE_NAME}.fdata -w ${PROFILE_NAME}.yaml
         break
     done
