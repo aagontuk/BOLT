@@ -248,12 +248,12 @@ TopCalledLimit("top-called-limit",
   cl::cat(BoltCategory));
 
 static cl::opt<std::string>
-CGFileName("cg-profile-file",
-  cl::desc("Call graph profile data output file name"));
+CGFileName("cg-profile",
+  cl::desc("Filename to output call graph profile data"));
 
 static cl::opt<std::string>
-BBFileName("bb-profile-file",
-  cl::desc("BB profile data output file name"));
+BBFileName("bb-profile",
+  cl::desc("Filename to output basic block profile data"));
 
 } // namespace opts
 
@@ -1305,7 +1305,7 @@ void dumpCallGraphProfile(BinaryContext &BC) {
     return;
 
   std::error_code EC;
-  raw_fd_ostream of("cgdata", EC, sys::fs::F_None);
+  raw_fd_ostream of(opts::CGFileName, EC, sys::fs::F_None);
 
   for(auto &BFI : BC.getBinaryFunctions()) {
     auto &function = BFI.second; 
@@ -1324,7 +1324,7 @@ void dumpBBProfile(BinaryContext &BC) {
     return;
 
   std::error_code EC;
-  raw_fd_ostream of("bbdata", EC, sys::fs::F_None);
+  raw_fd_ostream of(opts::BBFileName, EC, sys::fs::F_None);
 
   for(auto &BFI : BC.getBinaryFunctions()) {
     auto &function = BFI.second;
