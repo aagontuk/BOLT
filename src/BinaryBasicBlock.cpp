@@ -558,7 +558,8 @@ void BinaryBasicBlock::dumpBranchInfo(raw_ostream &OS) {
     auto &BBI = getBranchInfo(*succ);
     OS << format("%x", getParent()->getAddress() + getInputOffset()) << ","
       << format("%x", succ->getParent()->getAddress() + succ->getInputOffset())
-      << "," << BBI.Count << "," << BBI.MispredictedCount << "\n";
+      << "," << BBI.Count << "," << BBI.MispredictedCount << ","
+      << format("%.2f", BBI.Count / (float)ExecutionCount) << "\n";
   }
 }
 

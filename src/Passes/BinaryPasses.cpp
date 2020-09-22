@@ -1326,6 +1326,8 @@ void dumpBBProfile(BinaryContext &BC) {
   std::error_code EC;
   raw_fd_ostream of(opts::BBFileName, EC, sys::fs::F_None);
 
+  of << "Parent BB,Child BB,Count,Misspredicted Count,Bias\n";
+
   for(auto &BFI : BC.getBinaryFunctions()) {
     auto &function = BFI.second;
 
@@ -1354,11 +1356,6 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
   uint64_t NumBasicBlocks{0};
   uint64_t NumBasicBlocksWithProfile{0};
-
-  /// Generate call graph
-  generateCallGraph(BC);
-  dumpCallGraphProfile(BC);
-  dumpBBProfile(BC);
 
   std::vector<BinaryFunction *> ProfiledFunctions;
   const char *StaleFuncsHeader = "BOLT-INFO: Functions with stale profile:\n";
@@ -1415,6 +1412,12 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
       StaleSampleCount += SampleCount;
     }
   }
+
+  /// Generate call graph and dump CG and BB profile
+  generateCallGraph(BC);
+  dumpCallGraphProfile(BC);
+  dumpBBProfile(BC);
+
   BC.NumProfiledFuncs = ProfiledFunctions.size();
 
   const auto NumAllProfiledFunctions =
