@@ -276,7 +276,7 @@ public:
   }
 
   /// Return BinaryFunction containing a given \p Address or nullptr if
-  /// no registered function has it.
+  /// no registered function contains the \p Address.
   ///
   /// In a binary a function has somewhat vague  boundaries. E.g. a function can
   /// refer to the first byte past the end of the function, and it will still be
@@ -294,19 +294,14 @@ public:
   /// body and the next object in address ranges that we check.
   BinaryFunction *getBinaryFunctionContainingAddress(uint64_t Address,
                                                      bool CheckPastEnd = false,
-                                                     bool UseMaxSize = false,
-                                                     bool Shallow = false);
+                                                     bool UseMaxSize = false);
 
-  /// Return BinaryFunction which has a fragment that starts at a given
-  /// \p Address. If the BinaryFunction is a child fragment, then return its
-  /// parent unless \p Shallow parameter is set to true.
-  BinaryFunction *getBinaryFunctionAtAddress(uint64_t Address,
-                                             bool Shallow = false);
+  /// Return a BinaryFunction that starts at a given \p Address.
+  BinaryFunction *getBinaryFunctionAtAddress(uint64_t Address);
 
-  const BinaryFunction *getBinaryFunctionAtAddress(uint64_t Address,
-                                                   bool Shallow = false) const {
+  const BinaryFunction *getBinaryFunctionAtAddress(uint64_t Address) const {
     return const_cast<BinaryContext *>(this)->
-        getBinaryFunctionAtAddress(Address, Shallow);
+        getBinaryFunctionAtAddress(Address);
   }
 
   /// Return size of an entry for the given jump table \p Type.
@@ -579,6 +574,10 @@ public:
   /// Map SDT locations to SDT markers info
   std::unordered_map<uint64_t, SDTMarkerInfo> SDTMarkers;
 
+  /// Map linux kernel program locations/instructions to their pointers in
+  /// special linux kernel sections
+  std::unordered_map<uint64_t, std::vector<LKInstructionMarkerInfo>> LKMarkers;
+
   BinaryContext(std::unique_ptr<MCContext> Ctx,
                 std::unique_ptr<DWARFContext> DwCtx,
                 std::unique_ptr<Triple> TheTriple,
@@ -601,6 +600,10 @@ public:
 
   bool isELF() const {
     return TheTriple->isOSBinFormatELF();
+  }
+
+  bool isMachO() const {
+    return TheTriple->isOSBinFormatMachO();
   }
 
   bool isAArch64() const {
@@ -1108,14 +1111,7 @@ public:
   /// Return a function execution count threshold for determining whether
   /// the function is 'hot'. Consider it hot if count is above the average exec
   /// count of profiled functions.
-  uint64_t getHotThreshold() const {
-    static uint64_t Threshold{0};
-    if (Threshold == 0) {
-      Threshold =
-          NumProfiledFuncs ? SumExecutionCount / (2 * NumProfiledFuncs) : 1;
-    }
-    return Threshold;
-  }
+  uint64_t getHotThreshold() const;
 
   /// Return true if instruction \p Inst requires an offset for further
   /// processing (e.g. assigning a profile).

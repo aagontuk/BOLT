@@ -13,6 +13,7 @@
 #include "BinaryPasses.h"
 #include "ParallelUtilities.h"
 #include "Passes/ReorderAlgorithm.h"
+#include "Passes/ReorderFunctions.h"
 #include "llvm/Support/Options.h"
 #include "llvm/Support/raw_ostream.h"
 #include "BinaryFunctionCallGraph.h"
@@ -62,6 +63,7 @@ extern cl::opt<bolt::MacroFusionType> AlignMacroOpFusion;
 extern cl::opt<unsigned> Verbosity;
 extern cl::opt<bool> EnableBAT;
 extern cl::opt<bool> UpdateDebugSections;
+extern cl::opt<bolt::ReorderFunctions::ReorderType> ReorderFunctions;
 extern bool isHotTextMover(const bolt::BinaryFunction &Function);
 
 enum DynoStatsSortOrder : char {
@@ -183,6 +185,15 @@ ReorderBlocks("reorder-blocks",
       "cluster-shuffle",
       "perform random layout of clusters")),
   cl::ZeroOrMore,
+  cl::cat(BoltOptCategory));
+
+cl::opt<unsigned>
+ExecutionCountThreshold("execution-count-threshold",
+  cl::desc("perform profiling accuracy-sensitive optimizations only if "
+           "function execution count >= the threshold (default: 0)"),
+  cl::init(0),
+  cl::ZeroOrMore,
+  cl::Hidden,
   cl::cat(BoltOptCategory));
 
 static cl::opt<unsigned>
@@ -333,6 +344,14 @@ void EliminateUnreachableBlocks::runOnFunctions(BinaryContext &BC) {
 bool ReorderBasicBlocks::shouldPrint(const BinaryFunction &BF) const {
   return (BinaryFunctionPass::shouldPrint(BF) &&
           opts::ReorderBlocks != ReorderBasicBlocks::LT_NONE);
+}
+
+bool ReorderBasicBlocks::shouldOptimize(const BinaryFunction &BF) const {
+  // Apply execution count threshold
+  if (BF.getKnownExecutionCount() < opts::ExecutionCountThreshold)
+    return false;
+
+  return BinaryFunctionPass::shouldOptimize(BF);
 }
 
 void ReorderBasicBlocks::runOnFunctions(BinaryContext &BC) {
@@ -1159,7 +1178,9 @@ void AssignSections::runOnFunctions(BinaryContext &BC) {
   if (!BC.HasRelocations)
     return;
 
-  const auto UseColdSection = BC.NumProfiledFuncs > 0;
+  const auto UseColdSection =
+      BC.NumProfiledFuncs > 0 ||
+      opts::ReorderFunctions == ReorderFunctions::RT_USER;
   for (auto &BFI : BC.getBinaryFunctions()) {
     auto &Function = BFI.second;
     if (opts::isHotTextMover(Function)) {

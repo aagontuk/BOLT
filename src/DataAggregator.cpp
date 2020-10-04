@@ -704,14 +704,8 @@ DataAggregator::getBinaryFunctionContainingAddress(uint64_t Address) const {
   if (!BC->containsAddress(Address))
     return nullptr;
 
-  // Use shallow search to avoid fetching the parent function, in case
-  // BinaryContext linked two functions. When aggregating data and writing the
-  // profile, we want to write offsets relative to the closest symbol in the
-  // symbol table, not relative to the parent function, to avoid creating
-  // profile that is too fragile and depends on the layout of other functions.
   return BC->getBinaryFunctionContainingAddress(Address, /*CheckPastEnd=*/false,
-                                                /*UseMaxSize=*/true,
-                                                /*Shallow=*/true);
+                                                /*UseMaxSize=*/true);
 }
 
 StringRef DataAggregator::getLocationName(BinaryFunction &Func,
@@ -737,7 +731,7 @@ StringRef DataAggregator::getLocationName(BinaryFunction &Func,
       continue;
     return AlternativeName;
   }
-  return Func.getOneName();
+  return OrigFunc->getOneName();
 }
 
 bool DataAggregator::doSample(BinaryFunction &Func, uint64_t Address,
@@ -1437,8 +1431,8 @@ std::error_code DataAggregator::parseBranchEvents() {
     }
 
     NumEntries += Sample.LBR.size();
-    if (BAT && NumEntries == 32 && !NeedsSkylakeFix) {
-      outs() << "BOLT-WARNING: Using Intel Skylake bug workaround\n";
+    if (BAT && Sample.LBR.size() == 32 && !NeedsSkylakeFix) {
+      errs() << "PERF2BOLT-WARNING: using Intel Skylake bug workaround\n";
       NeedsSkylakeFix = true;
     }
 
