@@ -14,6 +14,7 @@
 #include "ParallelUtilities.h"
 #include "Passes/ReorderAlgorithm.h"
 #include "llvm/Support/Options.h"
+#include "llvm/Support/raw_ostream.h"
 #include "BinaryFunctionCallGraph.h"
 
 #include <numeric>
@@ -248,12 +249,23 @@ TopCalledLimit("top-called-limit",
   cl::cat(BoltCategory));
 
 static cl::opt<std::string>
-CGFileName("cg-profile",
-  cl::desc("Filename to output call graph profile data"));
+CGFileName("dump-cg-profile",
+  cl::desc("Filename to output call graph profile data"),
+  cl::Hidden,
+  cl::cat(BoltCategory));
 
 static cl::opt<std::string>
-BBFileName("bb-profile",
-  cl::desc("Filename to output basic block profile data"));
+BBFileName("dump-bb-profile",
+  cl::desc("Filename to output basic block profile data"),
+  cl::Hidden,
+  cl::cat(BoltCategory));
+
+static cl::opt<bool>
+FuncScore("func-score",
+    cl::desc("Output basic block profile data based on function score"),
+    cl::init(false),
+    cl::Hidden,
+    cl::cat(BoltCategory));
 
 } // namespace opts
 
@@ -1320,25 +1332,59 @@ void dumpCallGraphProfile(BinaryContext &BC) {
 }
 
 void dumpBBProfile(BinaryContext &BC) {
-  if(opts::BBFileName.empty())
+  if (opts::BBFileName.empty())
     return;
 
   std::error_code EC;
   raw_fd_ostream of(opts::BBFileName, EC, sys::fs::F_None);
 
-  of << "Parent BB,Child BB,Count,Misspredicted Count,Bias\n";
+  of << "Parent BB,Child BB,Execution Count,Misspredicted Count,Bias\n";
 
-  for(auto &BFI : BC.getBinaryFunctions()) {
+  // Dump basic block profile based on function score
+  if (opts::FuncScore) {
+    // Copy all the values into vector in order to sort them
+    std::map<uint64_t, BinaryFunction &> ScoreMap;
+    auto &BFs = BC.getBinaryFunctions();
+    for (auto It = BFs.begin(); It != BFs.end(); ++It) {
+      ScoreMap.insert(std::pair<uint64_t, BinaryFunction &>(
+          It->second.getFunctionScore(), It->second));
+    }
+    
+    for (std::map<uint64_t, BinaryFunction &>::reverse_iterator
+             Rit = ScoreMap.rbegin(); Rit != ScoreMap.rend(); ++Rit) {
+      
+      auto &function = Rit->second;
+      
+      if (function.isPLTFunction())
+        continue;
+
+      if (!function.hasProfile())
+        continue; 
+      
+      for (auto BB : function.layout()) {
+        if (!BB->getKnownExecutionCount())
+          continue;
+        BB->dumpBranchInfo(of); 
+      }
+    }
+
+    return;
+  }
+
+  // Dump basic block profile according to cfg
+  for (auto &BFI : BC.getBinaryFunctions()) {
     auto &function = BFI.second;
 
-    if(function.isPLTFunction())
+    if (function.isPLTFunction())
       continue;
 
-    if(!function.hasProfile())
+    if (!function.hasProfile())
       continue; 
+
+    outs() << function.getFunctionScore() << "\n";
     
-    for(auto BB : function.layout()) {
-      if(!BB->getKnownExecutionCount())
+    for (auto BB : function.layout()) {
+      if (!BB->getKnownExecutionCount())
         continue;
       BB->dumpBranchInfo(of); 
     }
