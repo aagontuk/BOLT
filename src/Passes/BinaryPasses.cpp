@@ -278,6 +278,12 @@ FuncScore("func-score",
     cl::Hidden,
     cl::cat(BoltCategory));
 
+static cl::opt<std::string>
+FuncScoreFileName("dump-funcs-by-score",
+    cl::desc("Filename to output functions sorted by score"),
+    cl::Hidden,
+    cl::cat(BoltCategory));
+
 } // namespace opts
 
 namespace llvm {
@@ -1352,9 +1358,38 @@ void dumpCallGraphProfile(BinaryContext &BC) {
   of.close();
 }
 
+void dumpFuncByScore(BinaryContext &BC) {
+  std::error_code EC;
+  raw_fd_ostream of(opts::FuncScoreFileName, EC, sys::fs::F_None);
+  
+  // Copy all the values into vector in order to sort them
+  std::map<uint64_t, BinaryFunction &> ScoreMap;
+  auto &BFs = BC.getBinaryFunctions();
+  for (auto It = BFs.begin(); It != BFs.end(); ++It) {
+    ScoreMap.insert(std::pair<uint64_t, BinaryFunction &>(
+        It->second.getFunctionScore(), It->second));
+  }
+  
+  for (std::map<uint64_t, BinaryFunction &>::reverse_iterator
+           Rit = ScoreMap.rbegin(); Rit != ScoreMap.rend(); ++Rit) {
+    
+    auto &function = Rit->second;
+    
+    if (function.isPLTFunction())
+      continue;
+
+    if (!function.hasProfile())
+      continue; 
+
+    of << function.getOneName() << "\n";
+  }
+}
+
 void dumpBBProfile(BinaryContext &BC) {
   if (opts::BBFileName.empty())
     return;
+
+  outs() << "BOLT-INFO: Dumping basic blocks in " << opts::BBFileName << "\n";
 
   std::error_code EC;
   raw_fd_ostream of(opts::BBFileName, EC, sys::fs::F_None);
@@ -1381,7 +1416,7 @@ void dumpBBProfile(BinaryContext &BC) {
 
       if (!function.hasProfile())
         continue; 
-      
+
       for (auto BB : function.layout()) {
         if (!BB->getKnownExecutionCount())
           continue;
@@ -1484,6 +1519,12 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
   generateCallGraph(BC);
   dumpCallGraphProfile(BC);
   dumpBBProfile(BC);
+
+  /// Dump functions sorted by score
+  if (!opts::FuncScoreFileName.empty()) {
+    outs() << "BOLT-INFO: Dumping functions in " << opts::FuncScoreFileName << "\n";
+    dumpFuncByScore(BC);
+  }
 
   BC.NumProfiledFuncs = ProfiledFunctions.size();
 
