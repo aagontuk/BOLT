@@ -284,6 +284,12 @@ FuncScoreFileName("dump-funcs-by-score",
     cl::Hidden,
     cl::cat(BoltCategory));
 
+static cl::opt<std::string>
+FuncReorderFileName("dump-funcs-reordered",
+    cl::desc("Filename to output functions that are reordered by BOLT"),
+    cl::Hidden,
+    cl::cat(BoltCategory));
+
 } // namespace opts
 
 namespace llvm {
@@ -385,6 +391,20 @@ void ReorderBasicBlocks::runOnFunctions(BinaryContext &BC) {
          << format("%zu (%.2lf%%) functions\n", ModifiedFuncCount.load(),
                    100.0 * ModifiedFuncCount.load() /
                        BC.getBinaryFunctions().size());
+
+  // Dump all the functions to file
+  if (!opts::FuncReorderFileName.empty()) {
+    std::error_code EC;
+    raw_fd_ostream of(opts::FuncReorderFileName, EC, sys::fs::F_None);
+
+    for (auto &BFI : BC.getBinaryFunctions()) {
+      auto &function = BFI.second; 
+
+      if (function.hasLayoutChanged()) {
+        of << function.getOneName() << "\n"; 
+      }
+    }
+  }
 
   if (opts::PrintFuncStat > 0) {
     raw_ostream &OS = outs();
