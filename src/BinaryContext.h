@@ -58,8 +58,6 @@
 
 namespace llvm {
 
-class DWARFDebugInfoEntryMinimal;
-
 using namespace object;
 
 namespace bolt {
@@ -208,7 +206,8 @@ class BinaryContext {
 
 public:
   static std::unique_ptr<BinaryContext>
-  createBinaryContext(ObjectFile *File, std::unique_ptr<DWARFContext> DwCtx);
+  createBinaryContext(ObjectFile *File, bool IsPIC,
+                      std::unique_ptr<DWARFContext> DwCtx);
 
   /// [start memory address] -> [segment info] mapping.
   std::map<uint64_t, SegmentInfo> SegmentMapInfo;
@@ -409,6 +408,10 @@ public:
     return InjectedBinaryFunctions;
   }
 
+  /// Return vector with all functions, i.e. include functions from the input
+  /// binary and functions created by BOLT.
+  std::vector<BinaryFunction *> getAllBinaryFunctions();
+
   /// Construct a jump table for \p Function at \p Address or return an existing
   /// one at that location.
   ///
@@ -430,7 +433,7 @@ public:
   /// could be partially populated if the jump table detection fails.
   bool analyzeJumpTable(const uint64_t Address,
                         const JumpTable::JumpTableType Type,
-                        const BinaryFunction &BF,
+                        BinaryFunction &BF,
                         const uint64_t NextJTAddress = 0,
                         JumpTable::OffsetsType *Offsets = nullptr);
 
@@ -511,7 +514,9 @@ public:
   /// Indicates if relocations are available for usage.
   bool HasRelocations{false};
 
-  /// Is the binary always loaded at a fixed address.
+  /// Is the binary always loaded at a fixed address. Shared objects and
+  /// position-independent executables (PIEs) are examples of binaries that
+  /// will have HasFixedLoadAddress set to false.
   bool HasFixedLoadAddress{true};
 
   /// True if the binary has no dynamic dependencies, i.e., if it was statically
@@ -808,6 +813,10 @@ public:
   }
 
   /// @}
+
+  /// Register \p TargetFunction as fragment of \p Function.
+  void registerFragment(BinaryFunction &TargetFunction,
+                        BinaryFunction &Function) const;
 
   /// Resolve inter-procedural dependencies from \p Function.
   void processInterproceduralReferences(BinaryFunction &Function);
@@ -1181,7 +1190,8 @@ public:
     MCEInstance.LocalMOFI = llvm::make_unique<MCObjectFileInfo>();
     MCEInstance.LocalCtx = llvm::make_unique<MCContext>(
         AsmInfo.get(), MRI.get(), MCEInstance.LocalMOFI.get());
-    MCEInstance.LocalMOFI->InitMCObjectFileInfo(*TheTriple, /*PIC=*/false,
+    MCEInstance.LocalMOFI->InitMCObjectFileInfo(*TheTriple,
+                                                /*PIC=*/!HasFixedLoadAddress,
                                                 *MCEInstance.LocalCtx);
     MCEInstance.MCE.reset(
         TheTarget->createMCCodeEmitter(*MII, *MRI, *MCEInstance.LocalCtx));
