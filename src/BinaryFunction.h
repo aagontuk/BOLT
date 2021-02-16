@@ -2307,6 +2307,9 @@ public:
   /// Get the number of instructions within this function.
   uint64_t getInstructionCount() const;
 
+  /// Get the number of dynamic instructions executed
+  uint64_t getDynamicInstructionCount() const;
+
   const CFIInstrMapType &getFDEProgram() const {
     return FrameInstructions;
   }

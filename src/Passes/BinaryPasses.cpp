@@ -14,6 +14,7 @@
 #include "ParallelUtilities.h"
 #include "Passes/ReorderAlgorithm.h"
 #include "Passes/ReorderFunctions.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Options.h"
 #include "llvm/Support/raw_ostream.h"
 #include "BinaryFunctionCallGraph.h"
@@ -287,6 +288,12 @@ FuncScoreFileName("dump-funcs-by-score",
 static cl::opt<std::string>
 FuncReorderFileName("dump-funcs-reordered",
     cl::desc("Filename to output functions that are reordered by BOLT"),
+    cl::Hidden,
+    cl::cat(BoltCategory));
+
+static cl::opt<std::string>
+FuncDyninsnFileName("dump-funcs-by-dyninsn",
+    cl::desc("Filename to output functions sorted by total dynamic instructions executed"),
     cl::Hidden,
     cl::cat(BoltCategory));
 
@@ -1405,6 +1412,34 @@ void dumpFuncByScore(BinaryContext &BC) {
   }
 }
 
+void dumpFuncByDyninsn(BinaryContext &BC) {
+  std::error_code EC;
+  raw_fd_ostream of(opts::FuncDyninsnFileName, EC, sys::fs::F_None);
+  
+  // Sort functions based dynamic instructions executed
+  std::map<uint64_t, BinaryFunction &> ScoreMap;
+  auto &BFs = BC.getBinaryFunctions();
+  
+  for (auto It = BFs.begin(); It != BFs.end(); ++It) {
+    ScoreMap.insert(std::pair<uint64_t, BinaryFunction &>(
+        It->second.getDynamicInstructionCount(), It->second));
+  }
+  
+  for (std::map<uint64_t, BinaryFunction &>::reverse_iterator
+           Rit = ScoreMap.rbegin(); Rit != ScoreMap.rend(); ++Rit) {
+    
+    auto &function = Rit->second;
+    
+    if (function.isPLTFunction())
+      continue;
+
+    if (!function.hasProfile())
+      continue; 
+
+    of << function.getOneName() << "\n";
+  }
+}
+
 void dumpBBProfile(BinaryContext &BC) {
   if (opts::BBFileName.empty())
     return;
@@ -1544,6 +1579,13 @@ PrintProgramStats::runOnFunctions(BinaryContext &BC) {
   if (!opts::FuncScoreFileName.empty()) {
     outs() << "BOLT-INFO: Dumping functions in " << opts::FuncScoreFileName << "\n";
     dumpFuncByScore(BC);
+  }
+  
+  /// Dump functions sorted by dynamic instructions executed
+  if (!opts::FuncDyninsnFileName.empty()) {
+    outs() << "BOLT-INFO: Dumping functions sorted by dynamic instructions executed in "
+      << opts::FuncDyninsnFileName << "\n"; 
+    dumpFuncByDyninsn(BC);
   }
 
   BC.NumProfiledFuncs = ProfiledFunctions.size();

@@ -2834,6 +2834,16 @@ uint64_t BinaryFunction::getInstructionCount() const {
   return Count;
 }
 
+uint64_t BinaryFunction::getDynamicInstructionCount() const {
+  uint64_t Count = 0;
+  for (auto &Block : BasicBlocksLayout) {
+    if (Block->hasProfile()) {
+      Count += (Block->getNumNonPseudos() * Block->getExecutionCount());
+    }
+  }
+  return Count;
+}
+
 bool BinaryFunction::hasLayoutChanged() const {
   return ModifiedLayout;
 }
